@@ -3,7 +3,7 @@ from Bio.Seq import Seq
 from Bio.SeqUtils import gc_fraction
 import re
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='../templates', static_folder='../static')
 
 def analyze_sequence(dna_sequence):
     # Clean the input sequence
