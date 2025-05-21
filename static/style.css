@@ -1,0 +1,78 @@
+body {
+    font-family: 'Arial', sans-serif; /* More common and readable font */
+    margin: 0; /* Reset default margin */
+    background-color: #f8f9fa; /* Light gray background */
+    color: #343a40; /* Dark gray text */
+    display: flex; /* Enable flexbox for centering */
+    justify-content: center; /* Center content horizontally */
+    align-items: flex-start; /* Align items to the top */
+    min-height: 100vh; /* Ensure full viewport height */
+    padding-top: 40px; /* Add some top padding */
+    box-sizing: border-box; /* Include padding and border in element's total width and height */
+}
+
+.container {
+    width: 80%; /* Limit width of content */
+    max-width: 960px; /* Set a maximum width */
+    background-color: #fff; /* White background for content area */
+    padding: 30px;
+    border-radius: 8px; /* Slightly rounded corners */
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+}
+
+h1, h2, h3 {
+    color: #007bff; /* Primary blue color */
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #495057; /* Slightly lighter text for labels */
+}
+
+textarea {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 20px;
+    border: 1px solid #ced4da; /* Light gray border */
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-family: monospace; /* Use monospace for DNA sequence */
+    font-size: 1em;
+}
+
+button {
+    background-color: #007bff; /* Primary blue color */
+    color: white;
+    padding: 12px 24px;
+    border: none;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 1.1em;
+    transition: background-color 0.3s ease; /* Smooth hover transition */
+}
+
+button:hover {
+    background-color: #0056b3; /* Darker blue on hover */
+}
+
+#results {
+    margin-top: 30px;
+    padding: 20px;
+    border: 1px solid #e0e0e0; /* Light gray border */
+    background-color: #f9f9f9; /* Light gray background for results */
+    border-radius: 6px;
+}
+
+#gcContent {
+    margin-bottom: 15px;
+    font-size: 1.1em;
+}
+
+#restrictionSites p, #orfs p {
+    line-height: 1.6; /* Improve readability of result lines */
+    margin-bottom: 10px;
+}

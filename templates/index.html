@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNA Sequence Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        textarea {
+            width: 100%;
+            font-family: monospace;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        .chart-container {
+            width: 400px;
+            height: 400px;
+            margin: 20px auto;
+        }
+        
+        .sequence-visualization {
+            width: 100%;
+            overflow-x: auto;
+            background-color: #f8f9fa;
+            padding: 10px;
+            margin: 20px 0;
+            border-radius: 4px;
+            position: relative;
+            height: 150px;
+        }
+        
+        .sequence-map {
+            white-space: nowrap;
+            font-family: monospace;
+            font-size: 12px;
+            letter-spacing: 1px;
+            line-height: 5;
+        }
+        
+        .restriction-marker {
+            position: absolute;
+            bottom: 30;
+            height: 40px;
+            width: 2px;
+            background-color: red;
+            transform: translateX(-1px);
+        }
+        
+        .restriction-label {
+            position: absolute;
+            bottom: 70px;
+            font-size: 10px;
+            transform: translateX(-50%) rotate(45deg);
+            white-space: nowrap;
+            background-color: white;
+            padding: 2px 4px;
+            border-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            max-width: 100px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .orf-block {
+            position: absolute;
+            height: 15px;
+            background-color: rgba(0, 119, 182, 0.7);
+            border-radius: 2px;
+            border: 1px solid #0064ff;
+            top: 20px;
+        }
+        
+        .orf-label {
+            position: absolute;
+            top: 40px;
+            font-size: 10px;
+            text-align: center;
+            background: white;
+            padding: 2px 4px;
+            border-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transform: translateX(-50%);
+            max-width: 80px;
+            width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .sequence-scale {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            align-items: center;
+            padding-left: 10px;
+            font-size: 11px;
+            color: #6c757d;
+        }
+        
+        #results {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>DNA Sequence Analyzer</h1>
+
+        <label for="dnaInput">Enter DNA Sequence:</label><br>
+        <textarea id="dnaInput" name="dnaInput" rows="8" placeholder="Enter DNA sequence (e.g., ATGCGTA...)"></textarea><br>
+
+        <button type="button">Analyze</button>
+
+        <div id="results">
+            <h2>Analysis Results</h2>
+            <div id="gcContent"></div>
+            <div class="chart-container">
+                <canvas id="gcChart"></canvas>
+            </div>
+            
+            <h3>Restriction Sites Map</h3>
+            <div id="sequenceMap" class="sequence-visualization"></div>
+            <div id="restrictionSites"></div>
+            
+            <h3>ORFs Map</h3>
+            <div id="orfsMap" class="sequence-visualization"></div>
+            <div id="orfs"></div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const gcChartCanvas = document.getElementById('gcChart');
+            const analyzeButton = document.querySelector('button');
+            const dnaInput = document.getElementById('dnaInput');
+            const gcContentDiv = document.getElementById('gcContent');
+            const restrictionSitesDiv = document.getElementById('restrictionSites');
+            const orfsDiv = document.getElementById('orfs');
+            let gcChart = null;
+
+            // Visualization functions
+            function visualizeRestrictionSites(sequence, restrictionSites) {
+                const container = document.getElementById('sequenceMap');
+                container.innerHTML = '';
+
+                //Create scale
+                const scale = document.createElement('div');
+                scale.className = 'sequence-scale';
+                scale.textContent = 'Sequence Length: ${sequence.length} bp';
+                container.appendChild(scale);
+
+                
+                // Create base sequence representation
+                const seqElement = document.createElement('div');
+                seqElement.className = 'sequence-map';
+                
+                // Display first 500 characters to prevent performance issues
+                const displaySeq = sequence.length > 500 ? 
+                    sequence.substring(0, 500) + '...' : sequence;
+                seqElement.textContent = displaySeq;
+                container.appendChild(seqElement);
+                
+                // Add markers for each restriction site
+                for (const enzyme in restrictionSites) {
+                    const sites = restrictionSites[enzyme].positions;
+                    const seq = restrictionSites[enzyme].sequence;
+                    
+                    sites.forEach(pos => {
+                        if (pos <= sequence.length) {
+                            // Create marker line
+                            const marker = document.createElement('div');
+                            marker.className = 'restriction-marker';
+                            marker.style.left = `${(pos / sequence.length) * 100}%`;
+                            
+                            // Create label
+                            const label = document.createElement('div');
+                            label.className = 'restriction-label';
+                            label.textContent = `${enzyme} (${seq})`;
+                            label.style.left = `${(pos / sequence.length) * 100}%`;
+                            
+                            container.appendChild(marker);
+                            container.appendChild(label);
+                        }
+                    });
+                }
+            }
+
+            function visualizeORFs(sequence, orfs) {
+                const container = document.getElementById('orfsMap');
+                container.innerHTML = '';
+                
+                // Create scale background
+                const scale = document.createElement('div');
+                scale.className = 'sequence-map';
+                
+                // Display first 500 characters to prevent performance issues
+                const displaySeq = sequence.length > 500 ? 
+                    sequence.substring(0, 500) + '...' : sequence;
+                scale.textContent = displaySeq;
+                container.appendChild(scale);
+                
+                // Add ORF blocks
+                orfs.forEach(orf => {
+                    if (orf.end <= sequence.length) {
+                        const orfBlock = document.createElement('div');
+                        orfBlock.className = 'orf-block';
+                        
+                        // Calculate position and width
+                        const startPercent = (orf.start / sequence.length) * 100;
+                        const endPercent = (orf.end / sequence.length) * 100;
+                        const width = endPercent - startPercent;
+                        
+                        orfBlock.style.left = `${startPercent}%`;
+                        orfBlock.style.width = `${width}%`;
+                        
+                        // Add label
+                        const label = document.createElement('div');
+                        label.className = 'orf-label';
+                        label.textContent = `${orf.start}-${orf.end} (${orf.length}bp)`;
+                        label.style.left = `${startPercent}%`;
+                        label.style.width = `${width}%`;
+                        
+                        container.appendChild(orfBlock);
+                        container.appendChild(label);
+                    }
+                });
+            }
+
+            analyzeButton.addEventListener('click', function() {
+                const dnaSequence = dnaInput.value.trim();
+
+                if (!dnaSequence) {
+                    alert('Please enter a DNA sequence');
+                    return;
+                }
+
+                // Clear previous results
+                gcContentDiv.textContent = '';
+                restrictionSitesDiv.textContent = '';
+                orfsDiv.textContent = '';
+                document.getElementById('sequenceMap').innerHTML = '';
+                document.getElementById('orfsMap').innerHTML = '';
+                if (gcChart) {
+                    gcChart.destroy();
+                }
+
+                fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ dna_sequence: dnaSequence })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(errorData => {
+                            throw new Error(errorData.error || 'Analysis failed');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Display GC content
+                    gcContentDiv.innerHTML = `<h3>GC Content: ${data.gc_content.toFixed(2)}%</h3>`;
+                    
+                    // Create GC content pie chart
+                    const atContent = 100 - data.gc_content;
+                    const ctx = gcChartCanvas.getContext('2d');
+                    gcChart = new Chart(ctx, {
+                        type: 'pie',
+                        data: {
+                            labels: ['GC Content', 'AT Content'],
+                            datasets: [{
+                                data: [data.gc_content, atContent],
+                                backgroundColor: [
+                                    'rgba(54, 162, 235, 0.7)',
+                                    'rgba(255, 99, 132, 0.7)'
+                                ],
+                                borderColor: [
+                                    'rgba(54, 162, 235, 1)',
+                                    'rgba(255, 99, 132, 1)'
+                                ],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom'
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return `${context.label}: ${context.raw.toFixed(2)}%`;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+
+                    // Visualize restriction sites
+                    if (data.dna_sequence && data.restriction_sites) {
+                        visualizeRestrictionSites(data.dna_sequence, data.restriction_sites);
+                    }
+
+                    // Visualize ORFs
+                    if (data.dna_sequence && data.orfs) {
+                        visualizeORFs(data.dna_sequence, data.orfs);
+                    }
+
+                    // Display restriction sites text
+                    let restrictionSitesHTML = '<h3>Restriction Sites:</h3>';
+                    if (data.restriction_sites && Object.keys(data.restriction_sites).length > 0) {
+                        restrictionSitesHTML += '<ul>';
+                        for (const enzyme in data.restriction_sites) {
+                            const siteInfo = data.restriction_sites[enzyme];
+                            if (siteInfo.positions && siteInfo.positions.length > 0) {
+                                restrictionSitesHTML += `<li>${enzyme} (${siteInfo.sequence}) found at position(s): ${siteInfo.positions.join(', ')}</li>`;
+                            }
+                        }
+                        restrictionSitesHTML += '</ul>';
+                    } else {
+                        restrictionSitesHTML += '<p>No restriction sites found.</p>';
+                    }
+                    restrictionSitesDiv.innerHTML = restrictionSitesHTML;
+
+                    // Display ORFs text
+                    let orfsHTML = '<h3>Open Reading Frames:</h3>';
+                    if (data.orfs && data.orfs.length > 0) {
+                        orfsHTML += '<ol>';
+                        data.orfs.forEach(orf => {
+                            orfsHTML += `<li>
+                                <strong>Position:</strong> ${orf.start}-${orf.end} (Length: ${orf.length} bp)<br>
+                                <strong>Strand:</strong> ${orf.strand === '+' ? 'Forward' : 'Reverse'}<br>
+                                <strong>Frame:</strong> ${orf.frame}<br>
+                                <strong>Sequence:</strong> ${orf.sequence.substring(0, 50)}${orf.sequence.length > 50 ? '...' : ''}
+                            </li>`;
+                        });
+                        orfsHTML += '</ol>';
+                    } else {
+                        orfsHTML += '<p>No ORFs found based on the criteria.</p>';
+                    }
+                    orfsDiv.innerHTML = orfsHTML;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    gcContentDiv.textContent = 'Error: ' + error.message;
+                    restrictionSitesDiv.textContent = '';
+                    orfsDiv.textContent = '';
+                    if (gcChart) {
+                        gcChart.destroy();
+                        gcChart = null;
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
